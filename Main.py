@@ -118,12 +118,13 @@ def send_welcome(message):
             "This is a fun game — no stress, no pressure.\n"
             "Just tap tiles, find 💎 diamonds, and cash out whenever you feel lucky! 😄\n\n"
             f"🎁 You start with *{stats['balance']} credits* — enjoy!\n\n"
-            "Hit /mines <amount> to jump in\n"
-            "or /daily for your free credits 💰\n\n"
+            "Hit `/mines <amount>` to jump in\n"
+            "or `/daily` for your free credits 💰\n\n"
             "Have fun and good luck! 🍀"
         ),
         parse_mode="Markdown",
     )
+
 
 @bot.message_handler(commands=["balance"])
 def show_balance(message):
@@ -147,12 +148,12 @@ def show_profile(message):
         message,
         (
             f"👤 *{stats['username']}'s Profile*\n\n"
-            f"💰 Balance: *{stats['balance']} credits*\n"
-            f"🎮 Games played: *{games}*\n"
-            f"✅ Wins: *{wins}*\n"
-            f"❌ Losses: *{losses}*\n"
-            f"📊 Win rate: *{winrate}*\n"
-            f"🏆 Biggest win: *{biggest} credits*"
+             f"💰 Balance: *{stats['balance']} credits*\n"
+             f"🎮 Games played: *{games}*\n"
+             f"✅ Wins: *{wins}*\n"
+             f"❌ Losses: *{losses}*\n"
+             f"📊 Win rate: *{winrate}*\n"
+             f"🏆 Biggest win: *{biggest} credits*"
         ),
         parse_mode="Markdown",
     )
@@ -207,7 +208,6 @@ def admin_players(message):
             f"{i}. *{name}*{active}\n   💰 {bal} credits | ✅ {wins}W / ❌ {losses}L / 🎮 {games} games"
         )
 
-    # Telegram message limit — split if too long
     text = "\n".join(lines)
     if len(text) > 4000:
         chunks = []
@@ -236,8 +236,8 @@ def admin_give(message):
         bot.reply_to(
             message,
             "Admin usage:\n"
-            "/give @username amount — add credits\n"
-            "/give @username -amount — remove credits",
+            "`/give @username amount` — add credits\n"
+            "`/give @username -amount` — remove credits",
             parse_mode="Markdown",
         )
         return
@@ -247,6 +247,16 @@ def admin_give(message):
         amount = int(args[2])
     except ValueError:
         bot.reply_to(message, "❌ Amount must be a number.")
+        return
+
+    # FIXED LINE 252 & 253
+    target_id = username_index.get(target_raw)
+    if not target_id:
+        bot.reply_to(
+            message,
+            f"❌ User *@{target_raw}* not found. They must have used the bot at least once.",
+            parse_mode="Markdown",
+        )
         return
 
     target = get_stats(target_id)
@@ -279,7 +289,7 @@ def transfer_credits(message):
     if len(args) < 3:
         bot.reply_to(
             message,
-            "Usage: /transfer @username amount\nExample: /transfer @john 200",
+            "Usage: `/transfer @username amount`\nExample: `/transfer @john 200`",
             parse_mode="Markdown",
         )
         return
@@ -290,7 +300,7 @@ def transfer_credits(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ Amount must be a number. Example: /transfer @john 200",
+            "❌ Amount must be a number. Example: `/transfer @john 200`",
             parse_mode="Markdown",
         )
         return
@@ -368,6 +378,7 @@ def daily_bonus(message):
             parse_mode="Markdown",
         )
 
+
 @bot.message_handler(commands=["mines"])
 def start_game(message):
     user = message.from_user
@@ -383,7 +394,7 @@ def start_game(message):
         bot.reply_to(
             message,
             f"💰 Balance: *{stats['balance']} credits*\n\n"
-            "Usage: /mines <amount> or /mines <amount> <bombs>\n"
+            "Usage: `/mines <amount>` or `/mines <amount> <bombs>`\n"
             "Bombs: min *1*, max *24* (default: 3)\n"
             "More bombs = bigger multiplier per tile! 💥",
             parse_mode="Markdown",
@@ -395,7 +406,7 @@ def start_game(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ Please enter a valid number. Example: /mines 100 or /mines 100 5",
+            "❌ Please enter a valid number. Example: `/mines 100` or `/mines 100 5`",
             parse_mode="Markdown",
         )
         return
@@ -407,7 +418,7 @@ def start_game(message):
         except ValueError:
             bot.reply_to(
                 message,
-                "❌ Bomb count must be a number. Example: /mines 100 5",
+                "❌ Bomb count must be a number. Example: `/mines 100 5`",
                 parse_mode="Markdown",
             )
             return
@@ -481,8 +492,6 @@ def callback_handler(call):
             )
             return
         stats["last_click"] = now
-
-    if call.data.startswith("click_"):
         idx = int(call.data.split("_")[1])
 
         if idx in stats["mines"]:
@@ -491,8 +500,7 @@ def callback_handler(call):
             stats["losses"] += 1
             reveal_board(
                 call.message.chat.id, user_id, call.message.message_id, hit_index=idx
-
-)
+            )
             bot.edit_message_text(
                 f"💥 *BOOM! You hit a mine!*\nYou lost *{stats['bet']} credits*.\n💰 Balance: *{stats['balance']} credits*\n\nUse /mines to play again.",
                 call.message.chat.id,
