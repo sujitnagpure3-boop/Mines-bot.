@@ -118,12 +118,13 @@ def send_welcome(message):
             "This is a fun game — no stress, no pressure.\n"
             "Just tap tiles, find 💎 diamonds, and cash out whenever you feel lucky! 😄\n\n"
             f"🎁 You start with *{stats['balance']} credits* — enjoy!\n\n"
-            "Hit /mines <amount> to jump in\n"
-            "or /daily for your free credits 💰\n\n"
+            "Hit `/mines <amount>` to jump in\n"
+            "or `/daily` for your free credits 💰\n\n"
             "Have fun and good luck! 🍀"
         ),
         parse_mode="Markdown",
     )
+
 
 @bot.message_handler(commands=["balance"])
 def show_balance(message):
@@ -236,8 +237,8 @@ def admin_give(message):
         bot.reply_to(
             message,
             "Admin usage:\n"
-            "/give @username amount — add credits\n"
-            "/give @username -amount — remove credits",
+            "`/give @username amount` — add credits\n"
+            "`/give @username -amount` — remove credits",
             parse_mode="Markdown",
         )
         return
@@ -249,7 +250,7 @@ def admin_give(message):
         bot.reply_to(message, "❌ Amount must be a number.")
         return
 
-target_id = username_index.get(target_raw)
+    target_id = username_index.get(target_raw)
     if not target_id:
         bot.reply_to(
             message,
@@ -288,7 +289,7 @@ def transfer_credits(message):
     if len(args) < 3:
         bot.reply_to(
             message,
-            "Usage: /transfer @username amount\nExample: /transfer @john 200",
+            "Usage: `/transfer @username amount`\nExample: `/transfer @john 200`",
             parse_mode="Markdown",
         )
         return
@@ -299,7 +300,7 @@ def transfer_credits(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ Amount must be a number. Example: /transfer @john 200",
+            "❌ Amount must be a number. Example: `/transfer @john 200`",
             parse_mode="Markdown",
         )
         return
@@ -377,6 +378,7 @@ def daily_bonus(message):
             parse_mode="Markdown",
         )
 
+
 @bot.message_handler(commands=["mines"])
 def start_game(message):
     user = message.from_user
@@ -392,7 +394,7 @@ def start_game(message):
         bot.reply_to(
             message,
             f"💰 Balance: *{stats['balance']} credits*\n\n"
-            "Usage: /mines <amount> or /mines <amount> <bombs>\n"
+            "Usage: `/mines <amount>` or `/mines <amount> <bombs>`\n"
             "Bombs: min *1*, max *24* (default: 3)\n"
             "More bombs = bigger multiplier per tile! 💥",
             parse_mode="Markdown",
@@ -404,7 +406,7 @@ def start_game(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ Please enter a valid number. Example: /mines 100 or /mines 100 5",
+            "❌ Please enter a valid number. Example: `/mines 100` or `/mines 100 5`",
             parse_mode="Markdown",
         )
         return
@@ -416,7 +418,7 @@ def start_game(message):
         except ValueError:
             bot.reply_to(
                 message,
-                "❌ Bomb count must be a number. Example: /mines 100 5",
+                "❌ Bomb count must be a number. Example: `/mines 100 5`",
                 parse_mode="Markdown",
             )
             return
@@ -500,8 +502,7 @@ def callback_handler(call):
             stats["losses"] += 1
             reveal_board(
                 call.message.chat.id, user_id, call.message.message_id, hit_index=idx
-
-)
+            )
             bot.edit_message_text(
                 f"💥 *BOOM! You hit a mine!*\nYou lost *{stats['bet']} credits*.\n💰 Balance: *{stats['balance']} credits*\n\nUse /mines to play again.",
                 call.message.chat.id,
@@ -550,7 +551,8 @@ bot.set_my_commands(
     [
         telebot.types.BotCommand("mines", "💣 Start a game — /mines <bet>"),
         telebot.types.BotCommand("daily", "🎁 Claim 500 free credits (once per 24h)"),
-        telebot.types.BotCommand("transfer", "💸 Send credits to another player"),
+        telebot.types.BotCommand("transfe
+r", "💸 Send credits to another player"),
         telebot.types.BotCommand("profile", "👤 Your personal stats"),
         telebot.types.BotCommand("balance", "💰 Check your current balance"),
         telebot.types.BotCommand("leaderboard", "🏆 Top 5 richest players"),
