@@ -249,12 +249,11 @@ def admin_give(message):
         bot.reply_to(message, "❌ Amount must be a number.")
         return
 
-target_id = username_index.get(target_raw)
-    if not target_id:
-        bot.reply_to(
+target_id = username_index.get(target_raw)  # Line 252
+    if not target_id:                           # Line 253
+        bot.reply_to(                           # Line 254
             message,
-            f"❌ User *@{target_raw}* not found. They must have used the bot at least once.",
-            parse_mode="Markdown",
+            f"❌ User *@{target_raw}* not found..."
         )
         return
 
