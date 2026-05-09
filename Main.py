@@ -1,4 +1,3 @@
-SUJIT:
 import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
