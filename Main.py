@@ -146,8 +146,8 @@ def reveal_board(chat_id, user_id, message_id, hit_index=None):
     )
 
 
-@bot.message_handler(commands=["start", "help"])
-def send_welcome(message):
+@bot.message_handler(commands=["start"])
+def start(message):
     user = message.from_user
 
     stats = get_stats(
@@ -155,81 +155,28 @@ def send_welcome(message):
         user.username or user.first_name
     )
 
-    name = user.first_name or user.username or "Player"
-
     bot.reply_to(
         message,
-        (
-            f"👋 Hey *{name}*, welcome!\n\n"
-            "💣 *Mines* is here and ready to play!\n\n"
-            "This is a fun game — no stress, no pressure.\n"
-            "Just tap tiles, find 💎 diamonds, and cash out whenever you feel lucky! 😄\n\n"
-            f"🎁 You start with *{stats['balance']} credits* — enjoy!\n\n"
-            "Hit /mines <amount> to jump in\n"
-            "or /daily for your free credits 💰\n\n"
-            "Have fun and good luck! 🍀"
-        ),
-        parse_mode="Markdown",
+        f"👋 Welcome {stats['username']}!\n💰 Balance: {stats['balance']} credits"
     )
 
 
 @bot.message_handler(commands=["balance"])
-def show_balance(message):
-    user = message.from_user
-
-    stats = get_stats(
-        user.id,
-        user.username or user.first_name
-    )
+def balance(message):
+    stats = get_stats(message.from_user.id)
 
     bot.reply_to(
         message,
-        f"💰 Your balance: *{stats['balance']} credits*",
-        parse_mode="Markdown"
-    )
-
-
-@bot.message_handler(commands=["profile"])
-def show_profile(message):
-    user = message.from_user
-
-    stats = get_stats(
-        user.id,
-        user.username or user.first_name
-    )
-
-    games = stats["games_played"]
-    wins = stats["wins"]
-    losses = stats["losses"]
-    biggest = stats["biggest_win"]
-
-    winrate = (
-        f"{(wins / games * 100):.1f}%"
-        if games > 0 else "N/A"
-    )
-
-    bot.reply_to(
-        message,
-        (
-            f"👤 *{stats['username']}'s Profile*\n\n"
-            f"💰 Balance: *{stats['balance']} credits*\n"
-            f"🎮 Games played: *{games}*\n"
-            f"✅ Wins: *{wins}*\n"
-            f"❌ Losses: *{losses}*\n"
-            f"📊 Win rate: *{winrate}*\n"
-            f"🏆 Biggest win: *{biggest} credits*"
-        ),
-        parse_mode="Markdown",
+        f"💰 Balance: {stats['balance']} credits"
     )
 
 
 @bot.message_handler(commands=["daily"])
 def daily_bonus(message):
     user = message.from_user
-    user_id = user.id
 
     stats = get_stats(
-        user_id,
+        user.id,
         user.username or user.first_name
     )
 
@@ -241,12 +188,10 @@ def daily_bonus(message):
 
         hours = remaining // 3600
         minutes = (remaining % 3600) // 60
-        seconds = remaining % 60
 
         bot.reply_to(
             message,
-            f"⏳ You already claimed your daily bonus!\nCome back in *{hours}h {minutes}m {seconds}s*.",
-            parse_mode="Markdown",
+            f"⏳ Come back in {hours}h {minutes}m"
         )
 
     else:
@@ -255,29 +200,23 @@ def daily_bonus(message):
 
         bot.reply_to(
             message,
-            (
-                f"🎁 *Daily bonus claimed!*\n"
-                f"+*{DAILY_BONUS} credits* added to your balance.\n"
-                f"💰 New Balance: *{stats['balance']} credits*"
-            ),
-            parse_mode="Markdown",
+            f"🎁 +{DAILY_BONUS} credits added!"
         )
 
 
 @bot.message_handler(commands=["mines"])
 def start_game(message):
     user = message.from_user
-    user_id = user.id
 
     stats = get_stats(
-        user_id,
+        user.id,
         user.username or user.first_name
     )
 
     if stats["active_game"]:
         bot.reply_to(
             message,
-            "❌ You already have an active game!"
+            "❌ Finish current game first!"
         )
         return
 
@@ -286,8 +225,7 @@ def start_game(message):
     if len(args) < 2:
         bot.reply_to(
             message,
-            "Usage: /mines <amount>",
-            parse_mode="Markdown"
+            "Usage: /mines <amount>"
         )
         return
 
@@ -297,23 +235,21 @@ def start_game(message):
     except ValueError:
         bot.reply_to(
             message,
-            "❌ Enter a valid number.",
-            parse_mode="Markdown"
+            "❌ Enter valid number"
         )
         return
 
     if bet <= 0:
         bot.reply_to(
             message,
-            "❌ Bet must be greater than 0."
+            "❌ Invalid bet"
         )
         return
 
     if bet > stats["balance"]:
         bot.reply_to(
             message,
-            f"❌ Insufficient balance.\n💰 Balance: *{stats['balance']}*",
-            parse_mode="Markdown"
+            "❌ Insufficient balance"
         )
         return
 
@@ -326,8 +262,8 @@ def start_game(message):
 
     send_board(
         message.chat.id,
-        user_id,
-        f"🎮 *Game Started!*\n💰 Bet: *{bet} credits*"
+        user.id,
+        f"🎮 Game Started\n💰 Bet: {bet}"
     )
 
 
@@ -344,7 +280,7 @@ def callback_handler(call):
     if not stats["active_game"]:
         bot.answer_callback_query(
             call.id,
-            "No active game."
+            "No active game"
         )
         return
 
@@ -355,11 +291,9 @@ def callback_handler(call):
         elapsed = now - stats.get("last_click", 0)
 
         if elapsed < CLICK_COOLDOWN:
-            remaining = round(CLICK_COOLDOWN - elapsed, 1)
-
             bot.answer_callback_query(
                 call.id,
-                f"⏳ Wait {remaining}s"
+                "⏳ Slow down"
             )
             return
 
@@ -370,15 +304,13 @@ def callback_handler(call):
         if idx in stats["opened"]:
             bot.answer_callback_query(
                 call.id,
-                "Already opened!"
+                "Already opened"
             )
             return
 
         if idx in stats["mines"]:
 
             stats["active_game"] = False
-            stats["games_played"] += 1
-            stats["losses"] += 1
 
             reveal_board(
                 call.message.chat.id,
@@ -388,14 +320,9 @@ def callback_handler(call):
             )
 
             bot.edit_message_text(
-                (
-                    f"💥 *BOOM!*\n"
-                    f"You lost *{stats['bet']} credits*.\n"
-                    f"💰 Balance: *{stats['balance']} credits*"
-                ),
+                f"💥 BOOM!\nLost {stats['bet']} credits",
                 call.message.chat.id,
-                call.message.message_id,
-                parse_mode="Markdown",
+                call.message.message_id
             )
 
         else:
@@ -410,10 +337,7 @@ def callback_handler(call):
             send_board(
                 call.message.chat.id,
                 user_id,
-                (
-                    f"💎 *Safe!*\n"
-                    f"Potential win: *{current_win} credits*"
-                ),
+                f"💎 Safe!\nPotential win: {current_win}",
                 call.message.message_id,
             )
 
@@ -427,28 +351,15 @@ def callback_handler(call):
 
         stats["balance"] += win
         stats["active_game"] = False
-        stats["games_played"] += 1
-        stats["wins"] += 1
-
-        if win > stats["biggest_win"]:
-            stats["biggest_win"] = win
 
         bot.edit_message_text(
-            (
-                f"✅ *Cashed Out!*\n"
-                f"💰 Won: *{win} credits*\n"
-                f"🏦 Balance: *{stats['balance']} credits*"
-            ),
+            f"✅ Cashed Out!\nWon {win} credits\n💰 Balance: {stats['balance']}",
             call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
+            call.message.message_id
         )
 
     bot.answer_callback_query(call.id)
 
-
-print("Clearing webhook...")
-bot.delete_webhook()
 
 print("Bot is running...")
 
