@@ -250,7 +250,7 @@ def admin_give(message):
         return
 
 target_id = username_index.get(target_raw)
-    if not target_id:
+        if not target_id:
         bot.reply_to(
             message,
             f"❌ User *@{target_raw}* not found. They must have used the bot at least once.",
