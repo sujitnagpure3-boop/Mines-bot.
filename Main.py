@@ -2,11 +2,12 @@ import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import random
+import time
 from flask import Flask
 from threading import Thread
 
-# --- WEB SERVER FOR HOSTING ---
-app = Flask(__name__)
+# --- RENDER WEB SERVER ---
+app = Flask('')
 
 @app.route('/')
 def home():
@@ -22,16 +23,19 @@ def keep_alive():
 
 # --- BOT CONFIGURATION ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set.")
 
+ADMIN_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
+
 bot = telebot.TeleBot(TOKEN)
 
-# --- GAME DATA ---
+# --- YOUR GAME DATA & LOGIC ---
 user_data = {}
-
-# --- FUNCTIONS ---
+username_index = {}
+DAILY_BONUS = 500
+DAILY_COOLDOWN = 86400
+CLICK_COOLDOWN = 1.5
 
 def get_stats(user_id, username=None):
     if user_id not in user_data:
@@ -41,16 +45,29 @@ def get_stats(user_id, username=None):
             "mines": [],
             "opened": [],
             "bet": 0,
-            "username": username or f"Player{user_id}"
+            "last_daily": 0,
+            "username": username or f"Player{user_id}",
+            "games_played": 0,
+            "wins": 0,
+            "losses": 0,
+            "biggest_win": 0,
+            "last_click": 0,
+            "mine_count": 3,
         }
+
+    if username:
+        user_data[user_id]["username"] = username
+        username_index[username.lower()] = user_id
 
     return user_data[user_id]
 
-
 def calculate_win(bet, opened_count, mine_count=3):
-    multiplier = 1 + (opened_count * (mine_count * 0.05))
+    per_tile = round(mine_count * 0.05, 2)
+    multiplier = 1 + (opened_count * per_tile)
     return int(bet * multiplier)
 
+def multiplier_per_tile(mine_count):
+    return round(mine_count * 0.05, 2)
 
 def send_board(chat_id, user_id, text, message_id=None):
     stats = user_data[user_id]
@@ -58,32 +75,32 @@ def send_board(chat_id, user_id, text, message_id=None):
     markup = InlineKeyboardMarkup()
 
     for r in range(5):
-        row = []
+        row_btns = []
 
         for c in range(5):
             idx = r * 5 + c
 
             if idx in stats["opened"]:
-                row.append(
+                row_btns.append(
                     InlineKeyboardButton("💎", callback_data="none")
                 )
             else:
-                row.append(
+                row_btns.append(
                     InlineKeyboardButton("❎", callback_data=f"click_{idx}")
                 )
 
-        markup.row(*row)
+        markup.row(*row_btns)
 
-    # Cashout button
     if len(stats["opened"]) > 0:
         current_win = calculate_win(
             stats["bet"],
-            len(stats["opened"])
+            len(stats["opened"]),
+            stats.get("mine_count", 3)
         )
 
         markup.add(
             InlineKeyboardButton(
-                f"💰 Cash Out ({current_win})",
+                f"💰 Cash Out ({current_win} credits)",
                 callback_data="cashout"
             )
         )
@@ -104,72 +121,69 @@ def send_board(chat_id, user_id, text, message_id=None):
             parse_mode="Markdown"
         )
 
-
 def reveal_board(chat_id, user_id, message_id, hit_index=None):
     stats = user_data[user_id]
 
     markup = InlineKeyboardMarkup()
 
     for r in range(5):
-        row = []
+        row_btns = []
 
         for c in range(5):
             idx = r * 5 + c
 
             if idx in stats["mines"]:
                 label = "💥" if idx == hit_index else "💣"
-                row.append(
+
+                row_btns.append(
                     InlineKeyboardButton(label, callback_data="none")
                 )
 
             elif idx in stats["opened"]:
-                row.append(
+                row_btns.append(
                     InlineKeyboardButton("💎", callback_data="none")
                 )
 
             else:
-                row.append(
+                row_btns.append(
                     InlineKeyboardButton("❎", callback_data="none")
                 )
 
-        markup.row(*row)
+        markup.row(*row_btns)
 
     return markup
 
-# --- COMMANDS ---
+# --- COMMAND HANDLERS ---
 
 @bot.message_handler(commands=["start", "help"])
-def welcome(message):
+def send_welcome(message):
     user = message.from_user
 
-    get_stats(user.id, user.username or user.first_name)
+    stats = get_stats(
+        user.id,
+        user.username or user.first_name
+    )
 
     bot.reply_to(
         message,
-        f"👋 Hey *{user.first_name}*!\n\n"
-        "💣 Use `/mines <amount>` to play!",
+        f"👋 Hey *{user.first_name}*!\n\n💣 Use `/mines <bet>` to play!",
         parse_mode="Markdown"
     )
-
-
-@bot.message_handler(commands=["balance"])
-def balance(message):
-    stats = get_stats(message.from_user.id)
-
-    bot.reply_to(
-        message,
-        f"💰 Balance: *{stats['balance']}* credits",
-        parse_mode="Markdown"
-    )
-
 
 @bot.message_handler(commands=["mines"])
 def start_game(message):
     user = message.from_user
-    stats = get_stats(user.id, user.username or user.first_name)
+
+    stats = get_stats(
+        user.id,
+        user.username or user.first_name
+    )
 
     if stats["active_game"]:
-        bot.reply_to(message, "❌ Finish your current game first!")
+        bot.reply_to(
+            message,
+            "❌ Finish your current game first!"
+        )
         return
 
     args = message.text.split()
@@ -182,35 +196,42 @@ def start_game(message):
         )
         return
 
-    # Safe number check
+    # FIXED SAFE INPUT
     try:
         bet = int(args[1])
     except ValueError:
-        bot.reply_to(message, "❌ Enter a valid number!")
+        bot.reply_to(
+            message,
+            "❌ Enter a valid number!"
+        )
         return
 
     if bet <= 0:
-        bot.reply_to(message, "❌ Bet must be greater than 0!")
+        bot.reply_to(
+            message,
+            "❌ Bet must be greater than 0!"
+        )
         return
 
     if bet > stats["balance"]:
-        bot.reply_to(message, "❌ Insufficient balance!")
+        bot.reply_to(
+            message,
+            "❌ Insufficient balance!"
+        )
         return
 
-    # Start game
     stats["balance"] -= bet
     stats["bet"] = bet
     stats["active_game"] = True
     stats["opened"] = []
+    stats["mine_count"] = 3
     stats["mines"] = random.sample(range(25), 3)
 
     send_board(
         message.chat.id,
         user.id,
-        f"🎮 *Game Started!*\n\n💰 Bet: *{bet}* credits"
+        "🎮 *Game Started!*"
     )
-
-# --- BUTTON HANDLER ---
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -218,25 +239,20 @@ def callback_handler(call):
     stats = get_stats(user_id)
 
     if not stats["active_game"]:
-        bot.answer_callback_query(call.id, "No active game!")
         return
 
-    # Ignore disabled buttons
-    if call.data == "none":
-        bot.answer_callback_query(call.id)
-        return
-
-    # TILE CLICK
     if call.data.startswith("click_"):
 
         idx = int(call.data.split("_")[1])
 
-        # Prevent duplicate click
+        # FIXED DUPLICATE CLICK
         if idx in stats["opened"]:
-            bot.answer_callback_query(call.id, "Already opened!")
+            bot.answer_callback_query(
+                call.id,
+                "Already opened!"
+            )
             return
 
-        # Mine hit
         if idx in stats["mines"]:
 
             stats["active_game"] = False
@@ -249,7 +265,7 @@ def callback_handler(call):
             )
 
             bot.edit_message_text(
-                f"💥 *BOOM!*\n\nYou lost *{stats['bet']}* credits.",
+                f"💥 *BOOM!* You lost *{stats['bet']} credits*.",
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=markup,
@@ -257,22 +273,21 @@ def callback_handler(call):
             )
 
         else:
-            # Safe tile
             stats["opened"].append(idx)
 
             send_board(
                 call.message.chat.id,
                 user_id,
-                "💎 *Safe Tile!*",
+                "💎 *Safe!*",
                 call.message.message_id
             )
 
-    # CASHOUT
     elif call.data == "cashout":
 
         win = calculate_win(
             stats["bet"],
-            len(stats["opened"])
+            len(stats["opened"]),
+            3
         )
 
         stats["balance"] += win
@@ -285,17 +300,14 @@ def callback_handler(call):
         )
 
         bot.edit_message_text(
-            f"✅ *Cashed Out!*\n\n"
-            f"💰 Won: *{win}* credits\n"
-            f"🏦 Balance: *{stats['balance']}* credits",
+            f"✅ *Cashed Out!* +{win} credits.",
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
             parse_mode="Markdown"
         )
 
-# --- START BOT ---
-
+# --- STARTUP ---
 if __name__ == "__main__":
     keep_alive()
     print("Bot is starting...")
